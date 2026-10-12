@@ -222,12 +222,18 @@ def edge_cases() -> tuple[list[dict], list[dict]]:
     perf.append(dict(next(r for r in perf if r["loan_id"] == "F19Q4E000013"
                           and r["period"] == "202007")))
 
-    # E14  one month missing (2021-03) -> flagged as a gap
+    # E14  one month missing (2021-03) while the loan is at risk -> flagged as a panel gap
     add("F19Q4E000014", "202001", 360, 260_000, 3.75, ["00"] * months_between("202001", CUTOFF))
     perf.remove(next(r for r in perf if r["loan_id"] == "F19Q4E000014" and r["period"] == "202103"))
 
     # E15  performance records with no origination record -> excluded from the panel
     perf.extend(history("F19Q4E000099", "202001", 360, 200_000, 3.75, ["00"] * 3))
+
+    # E16  defaults in 2009-08, then one month of its post-default history (2009-11) is
+    #      missing, as in real foreclosure histories -> counted, but not a panel gap
+    add("F08Q2E000016", "200806", 360, 230_000, 6.25,
+        ["00"] * 12 + ["01", "02", "03", "02", "01"] + ["00"] * 6, terminal={"code": "01"})
+    perf.remove(next(r for r in perf if r["loan_id"] == "F08Q2E000016" and r["period"] == "200911"))
 
     return orig, perf
 

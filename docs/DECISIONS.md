@@ -14,6 +14,7 @@ Facts about the data come from Freddie Mac's [SFLLD General User Guide, Release 
 * **REO acquired** (status `RA`) means Freddie Mac took the property, which is a default whatever the day count says.
 * **Credit-related zero balances** count even before 90 days: `02` third-party sale, `03` short sale or charge-off, `09` REO disposition, `15` whole-loan sale. A short sale at 60 days late is still a credit loss (edge case E06). These are exactly the codes for which Freddie Mac computes Actual Loss.
 * Delinquency is computed from the due date of the last paid installment, so the 90-day clock is mechanical, not a servicer's judgement.
+* A loan that reaches 90 days in the same month it is paid off or repurchased still defaults that month. In the real 2007 sample that happened to 81 payoffs and 3 defect repurchases, all with status `03` in that month. Their resolution is `paid_off` or `defect`, so each one is a default with no loss.
 * *Alternatives:* 180 days past due (used in some mortgage studies), or liquidation only. Both trigger later and sit less naturally with IFRS 9. They are worth running as sensitivities, not as the base case.
 
 ### D2. Default is absorbing for PD; the history after default is kept for LGD
@@ -56,6 +57,27 @@ Exposure at default is the balance in the default month. When the default **is**
 | Delinquency `00` | Up to September 2025 it can also mean "before the first payment date" | Harmless for default timing |
 | File layout | Release 47 moved Servicer Name and MI cancellation to the performance file, added VantageScore 4.0 | `layout.py`; the loader refuses any other column count |
 | HARP | A HARP loan is `harp_flag = Y` **and** original LTV > 80 | `is_harp` |
+| First payment date | For construction-to-permanent conversions and seller-owned modifications it is the conversion date, so a few loans start paying years after their vintage (44 in the 2007 sample, in 2009–2012) | Months on book count from that date, as Freddie Mac's own loan age does |
+
+---
+
+## Settled after checking the real 2007 sample
+
+The 2007 sample has 50,000 loans and 3,012,061 monthly records through March 2026. It passed every integrity check. These are the things only real data could show.
+
+### D10. Most loans appear the month before their first payment is due
+
+42,091 of the 50,000 loans first show up at months on book 0, the month before the first payment is due. Those months stay in the panel. A loan can be paid off then (34 were), but it cannot default, because no payment is due yet.
+
+### D11. Missing months after default do not affect the PD panel
+
+30 loans have missing months in their history, and every gap comes after the loan's default, during long foreclosure timelines. The panel stops at the default month, so the PD model never sees them. The quality report therefore checks gaps inside the panel (expected 0) separately from gaps anywhere in the history (information only).
+
+### D12. A blank loss means a defect was found
+
+441 of the 4,484 liquidations have no reported loss, and every one of them has a defect settlement date: the lender bought the loan back or made Freddie Mac whole, so Freddie Mac publishes no loss. They are left out of LGD.
+
+LGD is reported balance-weighted (total loss / total balance at default, 0.50 for the 2007 sample) next to the median loan's LGD (0.52). Balance-weighted is what banks report, because a large loan's loss matters more. About one in twelve liquidations (340 of 4,043) loses more than the balance at default, because unpaid interest and foreclosure costs build up over long timelines. A few show a gain, where sale proceeds and mortgage insurance exceed the balance.
 
 ---
 
@@ -68,6 +90,8 @@ In 2020 borrowers in forbearance stopped paying with their servicer's agreement.
 * **(a) Keep D1.** A pure backstop; 2020 becomes a regime the model has to survive.
 * **(b) Exclude defaults with `default_in_forbearance = true`.** This mirrors 2020 regulatory guidance that loans under COVID relief schemes should not automatically count as defaulted.
 * **(c) Keep them and add a forbearance indicator** as a predictor or segment.
+
+*Evidence from the real 2007 sample:* the 2020 default rate (CDR 6.0%) matched 2009's (6.1%), at the height of the financial crisis. But 122 of the 140 defaults in 2020 happened during forbearance or disaster relief. By March 2026, 103 of those 122 had paid off or become current, and 2 had been liquidated. Under (a), 2020 looks like a second crisis; under (b), it nearly disappears.
 
 *Suggestion:* build with (a), report (b) as a sensitivity, and make the gap between them a headline of the validation write-up. It is the same management-overlay debate banks had in 2020–21, and the out-of-time test period runs straight through it.
 

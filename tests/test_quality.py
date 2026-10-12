@@ -10,13 +10,17 @@ from ecl.synthetic import edge_cases, write_files
 
 
 def test_integrity_checks_flag_exactly_the_planted_problems(edge_db):
+    results = {label: value for label, value, _ in integrity_results(edge_db)}
     flagged = {label for label, value, expected in integrity_results(edge_db)
                if expected is not None and value != expected}
     assert flagged == {
-        "Duplicate (loan, month) records removed",                   # E13
-        "Performance loans with no origination record (excluded)",   # E15
-        "Loans with gaps in their monthly history",                  # E14
+        "Duplicate (loan, month) records removed",                          # E13
+        "Performance loans with no origination record (excluded)",          # E15
+        "Loans with a missing month while at risk (in the hazard panel)",   # E14
     }
+    # E16's gap is after its default: counted in the full history, not flagged
+    assert results["Loans with a missing month while at risk (in the hazard panel)"] == 1
+    assert results["Loans with missing months anywhere in their history (incl. after default)"] == 2
 
 
 def test_report_is_written_with_all_sections(edge_db, tmp_path):
@@ -29,3 +33,4 @@ def test_report_is_written_with_all_sections(edge_db, tmp_path):
         assert heading in text
     assert "Synthetic data" in text
     assert "| 2007 |" in text  # years are not printed as 2,007
+    assert "balance_weighted_lgd" in text

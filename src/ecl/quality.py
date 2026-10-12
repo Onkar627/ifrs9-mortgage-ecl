@@ -30,8 +30,19 @@ INTEGRITY_CHECKS: list[tuple[str, str, int | None]] = [
      "SELECT count(*) FROM loans WHERE loan_id NOT IN (SELECT DISTINCT loan_id FROM perf)", 0),
     ("Loans with missing first payment date",
      "SELECT count(*) FROM loans WHERE first_payment_date IS NULL", 0),
-    ("Loans with gaps in their monthly history",
-     "SELECT count(*) FROM loan_summary WHERE gap_months > 0", 0),
+    # A missing month only matters while the loan is at risk: that is what the PD
+    # model is fitted on. Gaps after default (seen in real foreclosure histories)
+    # touch only the post-default record, so they are reported but not flagged.
+    ("Loans with a missing month while at risk (in the hazard panel)",
+     """SELECT count(DISTINCT loan_id) FROM (
+            SELECT loan_id, date_diff('month', lag(period) OVER (PARTITION BY loan_id ORDER BY period),
+                                      period) AS step
+            FROM loan_month) WHERE step > 1""", 0),
+    ("Loans with missing months anywhere in their history (incl. after default)",
+     "SELECT count(*) FROM loan_summary WHERE gap_months > 0", None),
+    ("Loans that stop reporting before the data ends, without a termination code",
+     """SELECT count(*) FROM loan_summary
+        WHERE final_zb_code IS NULL AND last_period < (SELECT max(period) FROM perf)""", 0),
     ("Records after a loan's zero-balance month",
      """SELECT count(*) FROM (
             SELECT period, min(CASE WHEN zb_code IS NOT NULL THEN period END)
@@ -100,7 +111,12 @@ SELECT
     post_default_resolution                                    AS resolution,
     count(*)                                                   AS loans,
     round(100 * count(*) / sum(count(*)) OVER (), 1)           AS pct_of_defaults,
-    round(avg(realized_lgd), 3)                                AS mean_realized_lgd,
+    round(median(realized_lgd), 3)                             AS median_lgd,
+    round(sum(actual_loss) FILTER (WHERE realized_lgd IS NOT NULL)
+          / sum(default_upb) FILTER (WHERE realized_lgd IS NOT NULL), 3)
+                                                               AS balance_weighted_lgd,
+    count(*) FILTER (WHERE post_default_resolution = 'liquidated'
+                       AND actual_loss IS NULL)                AS loss_not_reported,
     sum((default_in_forbearance)::INT)                         AS defaulted_in_forbearance
 FROM loan_summary WHERE outcome = 'default'
 GROUP BY ALL ORDER BY loans DESC
@@ -175,8 +191,11 @@ def write_report(con: duckdb.DuckDBPyConnection, path: Path, files: RawFiles,
     out += ["", "## 5. Event mix in the hazard panel", "", md_table(con, EVENT_MIX)]
 
     out += ["", "## 6. What happened after default", "",
-            "From the full history, including months after default. "
-            "`realized_lgd` = actual loss / balance at default, liquidations only.", "",
+            "From the full history, including months after default. LGD (loss given default) "
+            "= actual loss / balance at default, for liquidations with a reported loss. "
+            "`balance_weighted_lgd` is total loss / total balance, the figure banks report. "
+            "`loss_not_reported` counts liquidations where Freddie Mac found a defect, so the "
+            "lender covered the loss and none is published.", "",
             md_table(con, DEFAULT_RESOLUTION), ""]
 
     path.parent.mkdir(parents=True, exist_ok=True)

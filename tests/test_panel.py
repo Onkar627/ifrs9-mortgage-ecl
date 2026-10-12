@@ -120,6 +120,37 @@ def test_gap_is_detected(edge_db):
     assert one(edge_db, "SELECT gap_months FROM loan_summary WHERE loan_id = 'F19Q4E000014'") == 1
 
 
+def test_gap_after_default_leaves_the_panel_untouched(edge_db):
+    outcome, month, gaps, resolution = edge_db.execute(
+        "SELECT outcome, strftime(outcome_period, '%Y-%m'), gap_months, post_default_resolution "
+        "FROM loan_summary WHERE loan_id = 'F08Q2E000016'").fetchone()
+    assert (outcome, month, gaps, resolution) == ("default", "2009-08", 1, "paid_off")
+    # the panel stops at the default month, so it never sees the missing month
+    assert one(edge_db, "SELECT max(period) FROM loan_month WHERE loan_id = 'F08Q2E000016'") \
+        == dt.date(2009, 8, 1)
+
+
+def test_default_in_a_payoff_month(tmp_path):
+    """A loan that is 90 days late in the month it pays off still defaults that month.
+
+    Seen in the real 2007 sample (81 loans): status 03 and zero-balance code 01 together.
+    """
+    import duckdb
+
+    from ecl.build import build
+    from ecl.synthetic import history, origination, write_files
+
+    loan = "F07Q4E000017"
+    orig = [origination(loan, "200711", 360, 180_000, 6.5)]
+    perf = history(loan, "200711", 360, 180_000, 6.5, ["00"] * 20 + ["01", "02", "03"],
+                   terminal={"code": "01"})
+    write_files(tmp_path / "raw", orig, perf)
+    con = duckdb.connect(str(build(tmp_path / "raw", tmp_path / "out", quiet=True,
+                                   export_parquet=False, report=False)), read_only=True)
+    assert con.execute("SELECT outcome, post_default_resolution FROM loan_summary").fetchone() \
+        == ("default", "paid_off")
+
+
 def test_hazard_panel_view_attaches_origination_fields(edge_db):
     fico, period = edge_db.execute(
         "SELECT fico, period FROM hazard_panel WHERE loan_id = 'F07Q1E000003' "

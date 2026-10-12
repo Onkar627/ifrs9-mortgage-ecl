@@ -2,7 +2,7 @@
 
 Lifetime expected credit losses for a mortgage book, built the way bank credit-risk teams build them: a competing-risks hazard model for default and prepayment, LGD and exposure models, macroeconomic scenarios, staging, and out-of-time validation. The data is Freddie Mac's public Single-Family Loan-Level Dataset: monthly performance and realised losses for US fixed-rate mortgages originated since 1999.
 
-**Status: Phase 1 (data foundation) complete and tested on synthetic data. Next: run on the real files.**
+**Status: Phase 1 (data foundation) complete. Verified on the real 2007 sample: 50,000 loans and 3.0 million monthly records, every integrity check passing. Next: the remaining vintages.**
 
 ## Quickstart
 
@@ -57,7 +57,7 @@ The definitions (default, prepayment, censoring, the time axis, leakage) are in 
 
 | Phase | Build | Done when | Hours |
 |---|---|---|---|
-| **1. Data foundation** ✅ | Loader, hazard panel, data quality report, 37 tests | Quality report on the real vintages committed; walkthrough exercises answered | 6–8 |
+| **1. Data foundation** ✅ | Loader, hazard panel, data quality report, 39 tests | Quality report on the real vintages committed; walkthrough exercises answered | 6–8 |
 | **2. Survival baselines (R)** | Kaplan–Meier and cumulative incidence by vintage and FICO band; Cox and Fine–Gray with delayed entry | Plots and a one-page note on what drives default versus prepayment | 8–10 |
 | **3a. Competing-risks MNL** | Multinomial logit on loan-months; seasoning, FICO, LTV, DTI, rate incentive | Marginal effects explained; in-sample calibration by vintage | 10–12 |
 | **3b. Bayesian hierarchical MNL** | Partial pooling across vintages and states, fitted on aggregated covariate cells | Posterior predictive checks; shrinkage shown against 3a | 10–14 |
