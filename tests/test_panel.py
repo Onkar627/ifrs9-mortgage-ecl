@@ -130,6 +130,55 @@ def test_gap_after_default_leaves_the_panel_untouched(edge_db):
         == dt.date(2009, 8, 1)
 
 
+def _build_custom(tmp_path, orig, perf, rename_year=None):
+    """Build a database from hand-made records; optionally move the files to another year."""
+    import duckdb
+
+    from ecl.build import build
+    from ecl.synthetic import write_files
+
+    raw = tmp_path / "raw"
+    for f in write_files(raw, orig, perf):
+        if rename_year:
+            old, new = rename_year
+            f.rename(f.with_name(f.name.replace(str(old), str(new))))
+    db = build(raw, tmp_path / "out", quiet=True, export_parquet=False, report=False)
+    return duckdb.connect(str(db), read_only=True)
+
+
+def test_vintage_comes_from_the_file(tmp_path):
+    """Real case: loan F09Q10107924 has a 2009 id but sits in Freddie Mac's 2008 file."""
+    from ecl.synthetic import history, origination
+
+    loan = "F09Q1E000018"
+    orig = [origination(loan, "200903", 360, 200_000, 5.25)]
+    perf = history(loan, "200903", 360, 200_000, 5.25, ["00"] * 6)
+    con = _build_custom(tmp_path, orig, perf, rename_year=(2009, 2008))
+    assert con.execute("SELECT vintage_year, vintage_quarter FROM loans").fetchone() == (2008, 1)
+
+
+def test_loan_already_in_default_when_first_reported(tmp_path):
+    """Real case: 5 re-delivered modified loans first appear 90+ days late."""
+    from ecl.synthetic import history, origination
+
+    loan = "F08Q4E000019"
+    orig = [origination(loan, "201503", 360, 217_000, 4.5)]
+    perf = history(loan, "201503", 360, 217_000, 4.5, ["03", "04", "05", "00", "00"],
+                   start="201502", terminal={"code": "01"})
+    con = _build_custom(tmp_path, orig, perf)
+    assert con.execute("SELECT count(*), bool_and(entered_in_default) FROM loan_month").fetchone() \
+        == (1, True)
+    assert con.execute("SELECT count(*) FROM hazard_panel").fetchone()[0] == 0
+    # still counted, with its outcome, in the per-loan summary
+    assert con.execute("SELECT outcome, post_default_resolution FROM loan_summary").fetchone() \
+        == ("default", "paid_off")
+
+
+def test_ordinary_loans_are_all_in_the_modelling_view(edge_db):
+    assert one(edge_db, "SELECT count(*) FROM loan_month WHERE entered_in_default") == 0
+    assert one(edge_db, "SELECT count(*) FROM hazard_panel") == one(edge_db, "SELECT count(*) FROM loan_month")
+
+
 def test_default_in_a_payoff_month(tmp_path):
     """A loan that is 90 days late in the month it pays off still defaults that month.
 

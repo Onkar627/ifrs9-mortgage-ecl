@@ -19,6 +19,10 @@
 --
 -- Leakage guard: everything observed in month t helps define month t's outcome, so the
 -- predictors taken from the performance file are lagged one month (suffix _lag1).
+--
+-- Entry rule: a loan must be observed in good standing before it can default. A loan that
+-- is already in default in its first reported month is flagged `entered_in_default` and
+-- left out of `hazard_panel`, the view the models use.
 
 CREATE OR REPLACE TABLE loan_month AS
 WITH base AS (
@@ -112,11 +116,17 @@ SELECT
     -- diagnostic on the default row only: was the loan in forbearance / disaster relief?
     CASE WHEN event = 'default'
          THEN in_forbearance OR disaster_delinquency OR coalesce(forbearance_prev, false)
-    END                                                              AS default_in_forbearance
+    END                                                              AS default_in_forbearance,
+
+    -- Already in default when first reported (e.g. a seller-owned modification delivered
+    -- years after origination): never observed at risk. Such a loan has exactly one row
+    -- here, its default, because default is absorbing.
+    obs_number = 1 AND event = 'default'                             AS entered_in_default
 FROM coded;
 
--- Convenience view for modelling: the panel with origination attributes attached.
+-- The modelling view: loans observed at risk, with origination attributes attached.
 CREATE OR REPLACE VIEW hazard_panel AS
 SELECT m.*, l.* EXCLUDE (loan_id, source_file)
 FROM loan_month m
-JOIN loans l USING (loan_id);
+JOIN loans l USING (loan_id)
+WHERE NOT m.entered_in_default;

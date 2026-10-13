@@ -10,10 +10,16 @@ CREATE OR REPLACE TABLE loans AS
 WITH typed AS (
     SELECT
         trim(loan_id)                                                    AS loan_id,
-        -- Vintage is encoded in the id: PYYQnXXXXXXX (P = product, YY = year, Qn = quarter).
-        CASE WHEN TRY_CAST(substr(trim(loan_id), 2, 2) AS INTEGER) >= 90
-             THEN 1900 ELSE 2000 END
-            + TRY_CAST(substr(trim(loan_id), 2, 2) AS INTEGER)          AS vintage_year,
+        -- Vintage = the year of the Freddie Mac file the loan came from (sample_orig_2008.txt,
+        -- orig_2008Q1.txt), so it always matches the years asked for with --vintages. The loan
+        -- id encodes it too (PYYQnXXXXXXX: P product, YY year, Qn quarter) and agrees for all but
+        -- 1 of 450,000 loans in the nine sample years; it is the fallback for other file names.
+        coalesce(
+            TRY_CAST(regexp_extract(filename, '(?:^|/)(?:sample_)?orig_(\d{4})[^/]*$', 1) AS INTEGER),
+            CASE WHEN TRY_CAST(substr(trim(loan_id), 2, 2) AS INTEGER) >= 90
+                 THEN 1900 ELSE 2000 END
+                + TRY_CAST(substr(trim(loan_id), 2, 2) AS INTEGER)
+        )                                                                AS vintage_year,
         TRY_CAST(substr(trim(loan_id), 5, 1) AS INTEGER)                AS vintage_quarter,
 
         try_strptime(trim(first_payment_date) || '01', '%Y%m%d')::DATE  AS first_payment_date,

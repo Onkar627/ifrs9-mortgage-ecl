@@ -57,8 +57,8 @@ INTEGRITY_CHECKS: list[tuple[str, str, int | None]] = [
         WHERE s.outcome = 'default' AND m.period > s.outcome_period""", 0),
     ("Loans entering the panel seasoned (entry_mob > 1)",
      "SELECT count(*) FROM loan_summary WHERE entry_mob > 1", None),
-    ("Loans in default at their first observed month",
-     "SELECT count(*) FROM loan_summary WHERE outcome = 'default' AND outcome_period = first_period", None),
+    ("Loans already in default when first reported (left out of hazard_panel)",
+     "SELECT count(*) FROM loan_month WHERE entered_in_default", None),
 ]
 
 MISSINGNESS_FIELDS = [
