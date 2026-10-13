@@ -105,4 +105,6 @@ The plan is to develop on data before 2019 and test on 2019 onwards, which cover
 
 ### O4. Which vintages to load
 
-Start with a mix of crisis (2005–2008), benign (2012, 2016) and COVID-era (2019–2021) vintages to keep build times short, then scale up. Write down the final choice here.
+**Current choice:** start with nine vintages: crisis (2005–2008), calm years (2012, 2016) and COVID-era (2019–2021). That keeps builds quick while getting started and still covers both stress periods.
+
+All 17 sample years from 2005 to 2021 are downloaded. The other eight stay zipped in `data/raw` and are not unpacked until asked for, so scaling up later is one build command. A full 17-year build was tested at about 54 million monthly records: under 4 minutes on 2 cores, about 5.5 GB of memory and 2 GB of database.

@@ -51,6 +51,31 @@ def test_zips_are_extracted_and_never_loaded_twice(tmp_path):
     assert found.orig[1].parent == raw  # the loose copy wins over the extracted duplicate
 
 
+def test_zips_for_other_years_are_not_unpacked(tmp_path):
+    orig, perf = edge_cases()
+    files = write_files(tmp_path / "staging", orig, perf)
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    for year in (2007, 2008, 2019):
+        with zipfile.ZipFile(raw / f"sample_{year}.zip", "w") as zf:
+            for f in files:
+                if f"_{year}" in f.name:
+                    zf.write(f, arcname=f.name)
+
+    found = discover(raw, {2007, 2019})
+    assert found.vintages == [2007, 2019]
+    unpacked = sorted(p.name for p in (raw / "_extracted").iterdir())
+    assert unpacked == ["sample_orig_2007.txt", "sample_orig_2019.txt",
+                        "sample_perf_2007.txt", "sample_perf_2019.txt"]  # no 2008
+
+
+def test_asking_for_a_year_that_is_not_there_is_an_error(tmp_path):
+    orig, perf = edge_cases()
+    write_files(tmp_path, orig, perf)
+    with pytest.raises(FileNotFoundError, match=r"Asked for vintages \[2012\]"):
+        discover(tmp_path, {2007, 2012})
+
+
 def test_vintage_filter_and_missing_partner_file(tmp_path):
     orig, perf = edge_cases()
     files = write_files(tmp_path, orig, perf)

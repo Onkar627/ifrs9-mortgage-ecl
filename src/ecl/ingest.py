@@ -22,6 +22,8 @@ from .layout import ORIGINATION_COLUMNS, PERFORMANCE_COLUMNS
 # Non-standard files (historical_data_excl_*) have a different layout and never match.
 _ORIG_RE = re.compile(r"^(?:sample_)?orig_(\d{4})(?:Q[1-4])?\.txt$", re.IGNORECASE)
 _PERF_RE = re.compile(r"^(?:sample_)?perf_(\d{4})(?:Q[1-4])?\.txt$", re.IGNORECASE)
+# sample_2007.zip or historical_data_2007Q1.zip: the zip's year, used to skip unwanted years
+_ZIP_RE = re.compile(r"^(?:sample|historical_data)_(\d{4})(?:Q[1-4])?\.zip$", re.IGNORECASE)
 
 
 class LayoutError(ValueError):
@@ -43,8 +45,12 @@ def _vintage(path: Path) -> int:
     return int(m.group(1)) if m else -1
 
 
-def extract_zips(raw_dir: Path) -> Path:
-    """Extract the .txt members of every zip in raw_dir into raw_dir/_extracted.
+def extract_zips(raw_dir: Path, vintages: set[int] | None = None) -> Path:
+    """Extract the .txt members of the zips in raw_dir into raw_dir/_extracted.
+
+    With `vintages`, a zip named for another year is skipped, so building fewer
+    years also unpacks less data (each sample year is about 350 MB unzipped). Zips
+    with other names are always extracted.
 
     Idempotent: a member already extracted at the same size is skipped. Only the
     base name of each member is used, so a crafted path inside a zip cannot write
@@ -52,6 +58,9 @@ def extract_zips(raw_dir: Path) -> Path:
     """
     out = raw_dir / "_extracted"
     for zpath in sorted(raw_dir.glob("*.zip")):
+        m = _ZIP_RE.match(zpath.name)
+        if vintages is not None and m and int(m.group(1)) not in vintages:
+            continue
         with zipfile.ZipFile(zpath) as zf:
             for member in zf.infolist():
                 name = Path(member.filename).name
@@ -76,7 +85,7 @@ def discover(raw_dir: str | Path, vintages: set[int] | None = None) -> RawFiles:
     raw_dir = Path(raw_dir)
     if not raw_dir.is_dir():
         raise FileNotFoundError(f"Raw data folder not found: {raw_dir}")
-    extract_zips(raw_dir)
+    extract_zips(raw_dir, vintages)
 
     by_name: dict[str, Path] = {}
     for path in sorted(raw_dir.rglob("*.txt"), key=lambda p: (len(p.parts), str(p))):
@@ -103,6 +112,12 @@ def discover(raw_dir: str | Path, vintages: set[int] | None = None) -> RawFiles:
         raise FileNotFoundError(
             f"Vintages with only one of the two files: {sorted(missing)}. "
             "Each vintage needs both its origination and performance file."
+        )
+    not_found = (vintages or set()) - {_vintage(p) for p in orig}
+    if not_found:
+        raise FileNotFoundError(
+            f"Asked for vintages {sorted(not_found)}, but {raw_dir} has no files for them. "
+            "Check that sample_YYYY.zip (or its unzipped folder) is in that folder."
         )
     return RawFiles(orig=orig, perf=perf)
 

@@ -75,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--raw", default="data/raw", help="folder with Freddie Mac zips or .txt files")
     parser.add_argument("--out", default="data/processed", help="output folder")
-    parser.add_argument("--vintages", nargs="+", type=int, help="only these vintage years")
+    parser.add_argument("--vintages", nargs="+", type=int,
+                        help="only these vintage years (zips for other years are not unpacked)")
     parser.add_argument("--no-parquet", action="store_true", help="skip Parquet export")
     parser.add_argument("--synthetic", action="store_true", help="label the report as synthetic")
     args = parser.parse_args(argv)

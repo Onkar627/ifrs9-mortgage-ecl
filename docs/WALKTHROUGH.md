@@ -147,7 +147,7 @@ Under the plain 90-day rule this is a default (`post_default_resolution = cured_
 
 ## 3. How the tests protect these rules
 
-`pytest` runs 39 tests: the edge cases above, layout and file handling, and invariants checked on 1,500 simulated loans (one terminal event per loan, months on book always +1, nothing after the outcome month). To check that the tests really bite, each rule was broken on purpose in the SQL and the suite rerun:
+`pytest` runs 41 tests: the edge cases above, layout and file handling, and invariants checked on 1,500 simulated loans (one terminal event per loan, months on book always +1, nothing after the outcome month). To check that the tests really bite, each rule was broken on purpose in the SQL and the suite rerun:
 
 | Deliberate bug | Caught |
 |---|---|

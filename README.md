@@ -57,7 +57,7 @@ The definitions (default, prepayment, censoring, the time axis, leakage) are in 
 
 | Phase | Build | Done when | Hours |
 |---|---|---|---|
-| **1. Data foundation** ✅ | Loader, hazard panel, data quality report, 39 tests | Quality report on the real vintages committed; walkthrough exercises answered | 6–8 |
+| **1. Data foundation** ✅ | Loader, hazard panel, data quality report, 41 tests | Quality report on the real vintages committed; walkthrough exercises answered | 6–8 |
 | **2. Survival baselines (R)** | Kaplan–Meier and cumulative incidence by vintage and FICO band; Cox and Fine–Gray with delayed entry | Plots and a one-page note on what drives default versus prepayment | 8–10 |
 | **3a. Competing-risks MNL** | Multinomial logit on loan-months; seasoning, FICO, LTV, DTI, rate incentive | Marginal effects explained; in-sample calibration by vintage | 10–12 |
 | **3b. Bayesian hierarchical MNL** | Partial pooling across vintages and states, fitted on aggregated covariate cells | Posterior predictive checks; shrinkage shown against 3a | 10–14 |
